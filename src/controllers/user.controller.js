@@ -6,7 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 
 const registerUser = asyncHandler(async (req, res) => {
   const { userName, fullName, email, password } = req.body;
-  console.log(req.body);
+  // console.log(req.body);
 
   if (
     [fullName, email, userName, password].some((field) => field?.trim() === "")
@@ -14,14 +14,16 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  const existedUser = User.findOne({ $or: [{ email }, { userName }] });
+  const existedUser = await User.findOne({ $or: [{ email }, { userName }] });
 
   if (existedUser) {
     throw new ApiError(409, "User already exist");
   }
 
-  const avatarLocalPath = req.files?.avatar[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  const avatarLocalPath = req.files.avatar && req.files.avatar[0]?.path;
+  const coverImageLocalPath = req.files.coverImage && req.files.coverImage[0]?.path;
+
+  // console.log(avatarLocalPath);
 
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar file is required");
@@ -29,6 +31,8 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const avatarResponse = await uploadOnCloudinary(avatarLocalPath);
   const coverImageResponse = await uploadOnCloudinary(coverImageLocalPath);
+
+  // console.log(avatarResponse);
 
   if (!avatarResponse) {
     throw new ApiError(400, "Avatar file is required");
