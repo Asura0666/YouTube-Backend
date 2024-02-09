@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.models.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteFromCloudinary, extractPublicIdFromUrl, uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 
@@ -236,13 +236,14 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
-  const { fullName, userName } = req.body;
+  const { fullName, email } = req.body;
 
+  console.log(fullName,'+',email);
   if (!fullName || !email) {
     throw new ApiError(400, "All fields are required");
   }
 
-  const user = User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
       $set: {
@@ -253,16 +254,36 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     { new: true }
   ).select("-password -refreshToken");
 
+  if (!user) {
+    throw new ApiError(404,'User not found')
+  }
+
   return res
     .status(201)
     .json(new ApiResponse(201, user, "Account detailed updated successfully"));
 });
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
-  const avatarLocalPath = req.file && req.file.avatar.path;
+  const user = await User.findById(req.user?._id)
+
+  if (!user) {
+    throw new ApiError(404,"User Not Found")
+  }
+
+  const oldAvaterUrl = user.avatar
+  // console.log(oldAvaterUrl);
+  if (oldAvaterUrl) {
+    const publicId = await extractPublicIdFromUrl(oldAvaterUrl)
+    const response = await deleteFromCloudinary(publicId)
+    console.log(response.result);
+  }
+
+  const avatarLocalPath = req.files.avatar && req.files.avatar[0].path;
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar file is missing...");
   }
+  // console.log("avatarLocalPath",avatarLocalPath);
+
 
   const avatar = await uploadOnCloudinary(avatarLocalPath);
 
@@ -270,7 +291,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Error while uploading on avatar");
   }
 
-  const user = await User.findByIdAndUpdate(
+  const updatedUser = await User.findByIdAndUpdate(
     req.user?._id,
     {
       $set: {
@@ -282,11 +303,24 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
   return res
     .status(201)
-    .json(new ApiResponse(201, user, "Avatar Successfully Updated"));
+    .json(new ApiResponse(201, updatedUser, "Avatar Successfully Updated"));
 });
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
-  const coverImageLocalPath = req.file && req.file.coverImage.path;
+  const user = await User.findById(req.user?._id)
+
+  if (!user) {
+    throw new ApiError(404,"User not found")
+  }
+
+  const oldCoverImageUrl = user.coverImage
+  if (oldCoverImageUrl) {
+    const publicId = await extractPublicIdFromUrl(oldCoverImageUrl)
+    const response = await deleteFromCloudinary(publicId)
+    console.log(response.result);
+  }
+
+  const coverImageLocalPath = req.files.coverImage && req.files.coverImage[0].path;
 
   if (!coverImageLocalPath) {
     throw new ApiError("Cover Image is missing...");
@@ -294,7 +328,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
-  const user = await User.findByIdAndUpdate(
+  const updatedUser = await User.findByIdAndUpdate(
     req.user._id,
     {
       $set: { coverImage: coverImage.url },
@@ -304,7 +338,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
   return res
     .status(201)
-    .json(new ApiResponse(201, user, "Cover Image Changed successfully"));
+    .json(new ApiResponse(201, updatedUser, "Cover Image Changed successfully"));
 });
 
 export {
