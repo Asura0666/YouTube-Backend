@@ -9,6 +9,8 @@ import {
   updateAccountDetails,
   updateUserAvatar,
   updateUserCoverImage,
+  getUserChannelProfile,
+  getWatchUserHistory,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middlewares.js";
 import { verifyJwtToken } from "../middlewares/auth.middlewares.js";
@@ -41,16 +43,20 @@ router.route("/update-account").patch(verifyJwtToken, updateAccountDetails);
 router
   .route("/update-avatar")
   .patch(
-    upload.fields([{ name: "avatar", maxCount: 1 }]),
     verifyJwtToken,
+    upload.fields([{ name: "avatar", maxCount: 1 }]),
     updateUserAvatar
   );
 router
   .route("/update-coverImage")
   .patch(
-    upload.fields([{ name: "coverImage", maxCount: 1 }]),
     verifyJwtToken,
+    upload.fields([{ name: "coverImage", maxCount: 1 }]),
     updateUserCoverImage
   );
+
+router.route('/c/:userName').get(verifyJwtToken, getUserChannelProfile)
+
+router.route('/history').get(verifyJwtToken, getWatchUserHistory)
 
 export default router;
