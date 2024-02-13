@@ -55,8 +55,8 @@ router
     updateUserCoverImage
   );
 
-router.route('/c/:userName').get(verifyJwtToken, getUserChannelProfile)
+router.route("/c/:userName").get(verifyJwtToken, getUserChannelProfile);
 
-router.route('/history').get(verifyJwtToken, getWatchUserHistory)
+router.route("/history").get(verifyJwtToken, getWatchUserHistory);
 
 export default router;

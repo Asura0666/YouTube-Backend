@@ -1,12 +1,12 @@
-import { Video } from "../models/video.models";
-import { ApiError } from "../utils/ApiError";
-import { asyncHandler } from "../utils/asyncHandler";
-import { ApiResponse } from "../utils/ApiResponse";
+import { Video } from "../models/video.models.js";
+import { ApiError } from "../utils/ApiError.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
 import {
   deleteFromCloudinary,
   extractPublicIdFromUrl,
   uploadOnCloudinary,
-} from "../utils/cloudinary";
+} from "../utils/cloudinary.js";
 import mongoose, { isValidObjectId } from "mongoose";
 
 const isUserOwner = async (videoId, req) => {
@@ -37,7 +37,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
     pipeline.push({
       $match: {
-        owner: mongoose.Types.ObjectId(userId),
+        owner: new mongoose.Types.ObjectId(userId),
       },
     });
   }
