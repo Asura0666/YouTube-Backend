@@ -13,7 +13,7 @@ router.route('/').post(upload.fields([
     maxCount: 1
   },
   {
-    name: 'thumbnail',
+    name: 'thumbnailFile',
     maxCount: 1
   }
 ]), uploadVideo)

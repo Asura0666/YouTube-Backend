@@ -8,4 +8,3 @@ router.use(verifyJwtToken)
 router.route('/c/:channelId').post(toggleSubscription)
 
 export default router
-

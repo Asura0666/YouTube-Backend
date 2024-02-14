@@ -6,6 +6,6 @@ const router = Router()
 
 router.use(verifyJwtToken)
 
-router.route('/v/:videoId').post(addComment)
+router.route('/:videoId').post(addComment)
 
 export default router
