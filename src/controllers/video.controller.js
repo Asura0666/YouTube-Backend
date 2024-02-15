@@ -7,7 +7,7 @@ import {
   extractPublicIdFromUrl,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
-import mongoose, { isValidObjectId } from "mongoose";
+import mongoose, { Query, isValidObjectId } from "mongoose";
 
 const isUserOwner = async (videoId, req) => {
   const video = await Video.findById(videoId);
@@ -20,19 +20,19 @@ const isUserOwner = async (videoId, req) => {
 };
 
 const getAllVideos = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
+  let { page = 1, limit = 10, sortBy, sortType, query, userId } = req.query;
 
-  page = +(page, 10);
-  limit = +(limit, 10);
+  page = parseInt(page, 10);
+  limit = parseInt(limit, 10);
 
   page = Math.max(1, page);
   limit = Math.min(20, Math.max(1, limit));
 
-  const pipeline = [];
+  let pipeline = [];
 
   if (userId) {
     if (!isValidObjectId(userId)) {
-      throw new ApiError(400, "userId is invalid");
+      throw new ApiError(404, "Invalid userId");
     }
 
     pipeline.push({
@@ -52,7 +52,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
     });
   }
 
-  const sortCriteria = {};
+  let sortCriteria = {};
   if (sortBy && sortType) {
     sortCriteria[sortBy] = sortType === "asc" ? 1 : -1;
     pipeline.push({
@@ -72,15 +72,15 @@ const getAllVideos = asyncHandler(async (req, res) => {
     $limit: limit,
   });
 
-  const Videos = await Video.aggregate(pipeline);
+  const videos = await Video.aggregate(pipeline);
 
-  if (!Videos || Videos.length === 0) {
+  if (!videos || videos.length === 0) {
     throw new ApiError(404, "Videos not found");
   }
 
   return res
     .status(200)
-    .json(new ApiResponse(200, Videos, "Videos fetched successfully"));
+    .json(new ApiResponse(200, videos, "Videos fetched successfully"));
 });
 
 const uploadVideo = asyncHandler(async (req, res) => {
@@ -215,15 +215,10 @@ const updateVideo = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, updatedVideo, "Video updated successfully"));
-
 });
 
-const deleteVideo = asyncHandler(async(req, res) => {
+const deleteVideo = asyncHandler(async (req, res) => {});
 
-})
-
-const togglePublishStatus = asyncHandler(async(req, res) => {
-  
-})
+const togglePublishStatus = asyncHandler(async (req, res) => {});
 
 export { getAllVideos, uploadVideo, getVideoById, updateVideo };
