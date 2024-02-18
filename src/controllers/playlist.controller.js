@@ -227,9 +227,405 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
   } catch (error) {
     throw new ApiError(
       500,
-      error?.message || "Something went wrong while toggling publish status of playlist"
+      error?.message ||
+        "Something went wrong while toggling publish status of playlist"
     );
   }
 });
 
-export { createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist, togglePublishStatus };
+const getAllPlaylist = asyncHandler(async (req, res) => {
+  let { page = 1, limit = 5, query, userId } = req.query;
+
+  page = isNaN(page) ? 1 : Number(page);
+  limit = isNaN(limit) ? 5 : Number(limit);
+
+  if (page < 0) {
+    page = 1;
+  }
+
+  if (limit <= 0) {
+    limit = 5;
+  }
+
+  const matchStage = {};
+  if (userId && isValidObjectId(userId)) {
+    matchStage["$match"] = {
+      "owner.owner_id": new mongoose.Types.ObjectId(userId),
+    };
+  } else if (query) {
+    matchStage["$match"] = {
+      $or: [
+        { name: { $regex: query, $options: "i" } },
+        { description: { $regex: query, $options: "i" } },
+        { "owner.userName": { $regex: query, $options: "i" } },
+      ],
+    };
+  } else {
+    matchStage["$match"] = {};
+  }
+
+  if (userId && query) {
+    matchStage["$match"] = {
+      $and: [
+        {
+          "owner.owner_id": new mongoose.Types.ObjectId(userId),
+        },
+        {
+          $or: [
+            { name: { $regex: query, $options: "i" } },
+            { description: { $regex: query, $options: "i" } },
+            { "owner.userName": { $regex: query, $options: "i" } },
+          ],
+        },
+      ],
+    };
+  }
+  try {
+    const playlists = await Playlist.aggregate([
+      {
+        $match: {
+          $or: [
+            {
+              owner: new mongoose.Types.ObjectId(req.user._id),
+            },
+            { isPublished: true },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "playlistOwnerInfo",
+        },
+      },
+      {
+        $unwind: "$playlistOwnerInfo",
+      },
+      {
+        $lookup: {
+          from: "videos",
+          localField: "videos",
+          foreignField: "_id",
+          as: "playlistVideos",
+          pipeline: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "videoOwnerInfo",
+              },
+            },
+            {
+              $unwind: "$videoOwnerInfo",
+            },
+            {
+              $match: {
+                $or: [
+                  {
+                    "videoOwnerInfo._id": new mongoose.Types.ObjectId(
+                      req.user._id
+                    ),
+                  },
+                  { isPublished: true },
+                ],
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                title: 1,
+                thumbnail: 1,
+                duration: 1,
+                views: 1,
+                createdAt: 1,
+                isPublished: 1,
+                videoOwner: {
+                  userName: "$videoOwnerInfo.userName",
+                  fullName: "$videoOwnerInfo.fullName",
+                  avatar: "$videoOwnerInfo.avatar",
+                  _id: "$videoOwnerInfo._id",
+                },
+              },
+            },
+          ],
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          description: 1,
+          isPublished: 1,
+          owner: {
+            userName: "$playlistOwnerInfo.userName",
+            fullName: "$playlistOwnerInfo.fullName",
+            avatar: "$playlistOwnerInfo.avatar",
+            owner_id: "$playlistOwnerInfo._id",
+          },
+          createdAt: 1,
+          updatedAt: 1,
+          playlistVideos: {
+            $map: {
+              input: "$playlistVideos",
+              as: "video",
+              in: {
+                title: "$$video.title",
+                thumbnail: "$$video.thumbnail",
+                duration: "$$video.duration",
+                views: "$$video.views",
+                createdAt: "$$video.createdAt",
+                videoOwner: "$$video.videoOwner",
+                _id: "$$video._id",
+                isPublished: "$$video.isPublished",
+              },
+            },
+          },
+        },
+      },
+      matchStage,
+      {
+        $skip: (page - 1) * limit,
+      },
+      {
+        $limit: limit,
+      },
+    ]);
+
+    if (!playlists || playlists.length === 0) {
+      throw new ApiError(404, "There is no playlist");
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, playlists, "playlists fetched successfully"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "something went wrong while fetching playlists"
+    );
+  }
+});
+
+const getPlaylistById = asyncHandler(async (req, res) => {
+  const { playlistId } = req.params;
+
+  if (!playlistId || !isValidObjectId(playlistId)) {
+    throw new ApiError(400, "playlistId is required or invalid");
+  }
+
+  try {
+    const playlist = await Playlist.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(playlistId),
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { owner: new mongoose.Types.ObjectId(req.user._id) },
+            { isPublished: true },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "playlistOwnerInfo",
+        },
+      },
+      {
+        $unwind: "$playlistOwnerInfo",
+      },
+      {
+        $lookup: {
+          from: "videos",
+          localField: "videos",
+          foreignField: "_id",
+          as: "playlistVideos",
+          pipeline: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "videoOwner",
+              },
+            },
+            {
+              $unwind: "$videoOwner",
+            },
+            {
+              $match: {
+                $or: [
+                  {
+                    "videoOwner._id": new mongoose.Types.ObjectId(req.user._id),
+                  },
+                  { isPublished: true },
+                ],
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                title: 1,
+                thumbnail: 1,
+                duration: 1,
+                views: 1,
+                isPublished: 1,
+                createdAt: 1,
+                videoOwner: {
+                  userName: "$videoOwner.userName",
+                  avatar: "$videoOwner.avatar",
+                  fullName: "$videoOwner.fullName",
+                  _id: "$videoOwner._id",
+                },
+              },
+            },
+          ],
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          description: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          owner: {
+            _id: "$playlistOwnerInfo._id",
+            userName: "$playlistOwnerInfo.userName",
+            avatar: "$playlistOwnerInfo.avatar",
+            fullName: "$playlistOwnerInfo.fullName",
+          },
+          playlistVideos: {
+            $map: {
+              input: "$playlistVideos",
+              as: "video",
+              in: {
+                _id: "$$video._id",
+                title: "$$video.title",
+                thumbnail: "$$video.thumbnail",
+                createdAt: "$$video.createdAt",
+                duration: "$$video.duration",
+                views: "$$video.views",
+                isPublished: "$$video.isPublished",
+                videoOwner: "$$video.videoOwner",
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    if (!playlist || playlist.length === 0) {
+      throw new ApiError(404, "Playlist Not Found");
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, playlist, "Playlist fetched successfully"));
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "something went wrong while fetching playlist"
+    );
+  }
+});
+
+const updatePlaylist = asyncHandler(async (req, res) => {
+  const { playlistId } = req.params;
+
+  if (!playlistId || !isValidObjectId(playlistId)) {
+    throw new ApiError(400, "playlistId is required or invalid");
+  }
+
+  try {
+    const { name, description } = req.body;
+
+    const userOwner = await isUserOwnerOfPlaylist(playlistId, req.user._id);
+
+    if (!userOwner) {
+      throw new ApiError(300, "Unauthorized Access");
+    }
+
+    if (!name || !description) {
+      throw new ApiError(400, "Name and Description is required");
+    }
+
+    const updatedPlaylist = await Playlist.findByIdAndUpdate(
+      playlistId,
+      {
+        $set: {
+          name: name,
+          description: description,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedPlaylist) {
+      throw new ApiError(500, "Unable to update playlist");
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(201, updatedPlaylist, "Playlist updated successfully")
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while updating playlist"
+    );
+  }
+});
+
+const deletePlaylist = asyncHandler(async (req, res) => {
+  const { playlistId } = req.params;
+
+  if (!playlistId || !isValidObjectId(playlistId)) {
+    throw new ApiError(400, "playlistId is required or invalid");
+  }
+
+  try {
+    const userOwner = await isUserOwnerOfPlaylist(playlistId, req.user?._id);
+
+    if (!userOwner) {
+      throw new ApiError(300, "Unauthorized Access");
+    }
+
+    const deletedPlaylist = await Playlist.findByIdAndDelete(playlistId);
+
+    if (!deletedPlaylist) {
+      throw new ApiError(500, "Unable to delete playlist");
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, deletedPlaylist, "Playlist deleted successfully")
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "Something went wrong while deleting playlist"
+    );
+  }
+});
+
+export {
+  createPlaylist,
+  addVideoToPlaylist,
+  removeVideoFromPlaylist,
+  togglePublishStatus,
+  getAllPlaylist,
+  getPlaylistById,
+  updatePlaylist,
+  deletePlaylist
+};
