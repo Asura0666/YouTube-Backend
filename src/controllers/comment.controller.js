@@ -1,106 +1,27 @@
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { Video } from "../models/video.models.js";
 import { Comment } from "../models/comment.models.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
-const getVideoComments = asyncHandler(async (req, res) => {
-  const { videoId } = req.params;
+const isOwnerOfComment = async (commentId, userId) => {
+  try {
+    const comment = await Comment.findById(commentId);
 
-  const { page = 1, limit = 10 } = req.query;
+    if (!comment) {
+      throw new ApiError(404, "There is no comment");
+    }
 
-  if (!videoId) {
-    throw new ApiError(400, "videoId is required");
+    if (comment.owner.toString() !== userId.toString()) {
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    throw new ApiError(500, error?.message || "comment does not exist's");
   }
-
-  const video = await Video.findById(videoId);
-
-  if (!video) {
-    await Comment.deleteMany({ video: videoId });
-    throw new ApiError(
-      404,
-      "There is no such video. All associated comment have been deleted."
-    );
-  }
-
-  const commentsAggregate = Comment.aggregate([
-    {
-      $match: {
-        video: new mongoose.Types.ObjectId(videoId),
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "owner",
-        foreignField: "_id",
-        as: "owner",
-      },
-    },
-    {
-      $lookup: {
-        from: "likes",
-        localField: "_id",
-        foreignField: "comment",
-        as: "likes",
-      },
-    },
-    {
-      $addFields: {
-        likesCount: {
-          $size: "$likes",
-        },
-        owner: {
-          $first: "$owner",
-        },
-        isLiked: {
-          $cond: {
-            if: { $in: [req.user?._id, "likes.likedBy"] },
-            then: true,
-            else: false,
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        content: 1,
-        createdAt: 1,
-        likesCount: 1,
-        owner: {
-          userName: 1,
-          fullName: 1,
-          avatar: 1,
-        },
-        isLiked: 1,
-      },
-    },
-  ]);
-
-  const options = {
-    page: +(page, 10),
-    limit: +(limit, 10),
-  };
-
-  const comments = await Comment.aggregatePaginate(commentsAggregate, options);
-
-  if (!comments || comments.length === 0) {
-    return res
-      .status(200)
-      .json(new ApiResponse(200, {}, "No comments in this video"));
-  }
-
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        comments,
-        "Comments of the video fetched successfully"
-      )
-    );
-});
+};
 
 const addComment = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
@@ -142,4 +63,285 @@ const addComment = asyncHandler(async (req, res) => {
   }
 });
 
-export { addComment, getVideoComments };
+const getVideoComment = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
+
+  let { page = 1, limit = 10 } = req.query;
+
+  if (!videoId || !isValidObjectId(videoId)) {
+    throw new ApiError(400, "videoId is required or invalid");
+  }
+
+  page = isNaN(page) ? 1 : Number(page);
+  limit = isNaN(limit) ? 10 : Number(limit);
+
+  if (page < 0) {
+    page = 1;
+  }
+
+  if (limit <= 0) {
+    limit = 10;
+  }
+
+  try {
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+      await Comment.deleteMany({ video: videoId });
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(
+            404,
+            {},
+            "There is no such video and all associated comments have been deleted"
+          )
+        );
+    }
+
+    const allComments = await Comment.aggregate(
+      [
+        {
+          $match: {
+            video: new mongoose.Types.ObjectId(videoId),
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "owner",
+            foreignField: "_id",
+            as: "owner",
+          },
+        },
+        {
+          $unwind: "$owner",
+        },
+        {
+          $lookup: {
+            from: "likes",
+            let: { commentId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: ["$comment", "$$commentId"],
+                  },
+                },
+              },
+              {
+                $lookup: {
+                  from: "users",
+                  localField: "likedBy",
+                  foreignField: "_id",
+                  as: "likedByInfo",
+                },
+              },
+              {
+                $unwind: "$likedByInfo",
+              },
+              {
+                $project: {
+                  _id: 1,
+                  userInfo: {
+                    userName: "$likedByInfo.userName",
+                    avatar: "$likedByInfo.avatar",
+                    fullName: "$likedByInfo.fullName",
+                  },
+                  likedBy: 1,
+                },
+              },
+            ],
+            as: "likes",
+          },
+        },
+        {
+          $addFields: {
+            likesCount: {
+              $size: "$likes",
+            },
+            isLiked: {
+              $cond: {
+                if: {
+                  $in: [
+                    new mongoose.Types.ObjectId(req.user._id),
+                    "$likes.likedBy",
+                  ],
+                },
+                then: true,
+                else: false,
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            content: 1,
+            createdAt: 1,
+            owner: {
+              _id: "$owner._id",
+              userName: "$owner.userName",
+              avatar: "$owner.avatar",
+              fullName: "$owner.fullName",
+            },
+            likesCount: 1,
+            _id: 1,
+            isLiked: 1,
+            userlikes: {
+              $map: {
+                input: "$likes",
+                as: "userlike",
+                in: {
+                  _id: "$$userlike._id",
+                  userInfo: "$$userlike.userInfo",
+                  likedBy: "$$userlike.likedBy",
+                },
+              },
+            },
+          },
+        },
+        {
+          $skip: (page - 1) * limit
+        },
+        {
+          $limit: limit
+        }
+      ],
+    );
+
+    if (!allComments || allComments.length === 0) {
+      return res
+        .status(200)
+        .json(new ApiResponse(200, allComments, "No Comments in this video"));
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          allComments,
+          "all comments of video fetched successfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "something went wrong while fetching video comments"
+    );
+  }
+});
+
+const updateComment = asyncHandler(async (req, res) => {
+  const { commentId } = req.params;
+
+  if (!commentId || !isValidObjectId(commentId)) {
+    throw new ApiError(400, "commentId is required or invalid");
+  }
+
+  const { commentContent } = req.body;
+
+  if (!commentContent) {
+    throw new ApiError(400, "commentContent is required");
+  }
+
+  try {
+    const comment = await Comment.findById(commentId);
+    const videoId = new mongoose.Types.ObjectId(comment.video);
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+      await Comment.deleteMany({ video: videoId });
+
+      return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Comment does not exist"));
+    }
+
+    const commentOwner = await isOwnerOfComment(commentId, req.user._id);
+
+    if (!commentOwner) {
+      throw new ApiError(300, "Unauthorized Access");
+    }
+
+    const updatedComment = await Comment.findByIdAndUpdate(
+      commentId,
+      {
+        $set: {
+          content: commentContent,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedComment) {
+      throw new ApiError(500, "Unable to update comment");
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, updatedComment, "Comment updated successfully")
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error?.message || "something went wrong while updating comment"
+    );
+  }
+});
+
+const deleteComment = asyncHandler(async (req, res) => {
+  const { commentId } = req.params;
+
+  if (!commentId || !isValidObjectId(commentId)) {
+    throw new ApiError(400, "commentId is required or invalid");
+  }
+
+  try {
+    const comment = await Comment.findById(commentId);
+
+    if (!comment) {
+      throw new ApiError(404, "there is no comment");
+    }
+
+    const videoId = new mongoose.Types.ObjectId(comment.video);
+
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+      await Comment.deleteMany({ video: videoId });
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            {},
+            "There is no such Video. All associated comments have been deleted"
+          )
+        );
+    }
+
+    const commentOwner = await isOwnerOfComment(commentId, req.user._id);
+
+    if (!commentOwner) {
+      throw new ApiError(300, "Unauthorized Access");
+    }
+
+    const deletedComment = await Comment.findByIdAndDelete(commentId);
+
+    if (!deletedComment) {
+      throw new ApiError(500, "Unable to delete the comment");
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, deletedComment || "Comment deleted successfully")
+      );
+  } catch (error) {
+    throw new ApiError(500, error?.message || "Unable to delete comment");
+  }
+});
+
+export { addComment, getVideoComment, updateComment, deleteComment };

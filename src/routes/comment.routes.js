@@ -1,11 +1,18 @@
 import { Router } from "express";
-import {verifyJwtToken} from '../middlewares/auth.middlewares.js'
-import { addComment } from "../controllers/comment.controller.js";
+import { verifyJwtToken } from "../middlewares/auth.middlewares.js";
+import {
+  addComment,
+  deleteComment,
+  getVideoComment,
+  updateComment,
+} from "../controllers/comment.controller.js";
 
-const router = Router()
+const router = Router();
 
-router.use(verifyJwtToken)
+router.use(verifyJwtToken);
 
-router.route('/:videoId').post(addComment)
+router.route("/:videoId").post(addComment).get(getVideoComment);
 
-export default router
+router.route("/c/:commentId").delete(deleteComment).patch(updateComment);
+
+export default router;
