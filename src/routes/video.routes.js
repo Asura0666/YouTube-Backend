@@ -2,6 +2,7 @@ import { Router } from "express";
 import { verifyJwtToken } from "../middlewares/auth.middlewares.js";
 import { upload } from "../middlewares/multer.middlewares.js";
 import {
+  deleteVideo,
   getAllVideos,
   getVideoById,
   togglePublishStatus,
@@ -33,6 +34,7 @@ router
 router
   .route("/:videoId")
   .get(getVideoById)
+  .delete(deleteVideo)
   .patch(
     upload.fields([
       {
@@ -43,6 +45,6 @@ router
     updateVideo
   );
 
-router.route('/toggle/publish/:videoId').patch(togglePublishStatus)
+router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
 
 export default router;
