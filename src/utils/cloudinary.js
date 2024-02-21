@@ -38,7 +38,6 @@ const extractPublicIdFromUrl = async (imageUrl) => {
   return publicId;
 };
 
-
 const deleteFromCloudinary = async (publicId) => {
   try {
     if (!publicId) {
