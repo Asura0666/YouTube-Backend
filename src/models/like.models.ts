@@ -1,6 +1,14 @@
-import { Schema, model } from "mongoose";
+import { Document, Schema, model } from "mongoose";
 
-const likeSchema = new Schema(
+interface ILike extends Document {
+  comment: Schema.Types.ObjectId;
+  video: Schema.Types.ObjectId;
+  likedBy: Schema.Types.ObjectId;
+  tweet: Schema.Types.ObjectId;
+}
+
+
+const likeSchema = new Schema<ILike>(
   {
     comment: {
       type: Schema.Types.ObjectId,
@@ -22,5 +30,4 @@ const likeSchema = new Schema(
   { timestamps: true }
 );
 
-
-export const Like = model("Like", likeSchema);
+export const Like = model<ILike>("Like", likeSchema);

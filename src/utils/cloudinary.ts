@@ -1,4 +1,4 @@
-import { v2 as cloudinary } from "cloudinary";
+import { UploadApiResponse, v2 as cloudinary } from "cloudinary";
 
 import fs from "fs";
 
@@ -10,7 +10,9 @@ cloudinary.config({
   secure: true,
 });
 
-const uploadOnCloudinary = async (localFilePath) => {
+const uploadOnCloudinary = async (
+  localFilePath: string
+): Promise<UploadApiResponse | null> => {
   try {
     if (!localFilePath) {
       return null;
@@ -30,7 +32,7 @@ const uploadOnCloudinary = async (localFilePath) => {
   }
 };
 
-const extractPublicIdFromUrl = async (imageUrl) => {
+const extractPublicIdFromUrl = async (imageUrl: string): Promise<string> => {
   const parts = imageUrl.split("/");
   const publicIdWithFormat = parts[parts.length - 1];
   const publicId = publicIdWithFormat.split(".")[0];
@@ -38,7 +40,7 @@ const extractPublicIdFromUrl = async (imageUrl) => {
   return publicId;
 };
 
-const deleteFromCloudinary = async (publicId) => {
+const deleteFromCloudinary = async (publicId: string): Promise<any> => {
   try {
     if (!publicId) {
       throw new Error("required Public Id");

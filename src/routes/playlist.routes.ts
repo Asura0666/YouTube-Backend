@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { verifyJwtToken } from "../middlewares/auth.middlewares.js";
+import { verifyJwtToken } from "../middlewares/auth.middlewares.ts";
 import {
   addVideoToPlaylist,
   createPlaylist,
@@ -9,7 +9,7 @@ import {
   removeVideoFromPlaylist,
   togglePublishStatus,
   updatePlaylist,
-} from "../controllers/playlist.controller.js";
+} from "../controllers/playlist.controller.ts";
 
 const router = Router();
 

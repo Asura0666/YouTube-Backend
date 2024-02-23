@@ -11,9 +11,9 @@ import {
   updateUserCoverImage,
   getUserChannelProfile,
   getWatchUserHistory,
-} from "../controllers/user.controller.js";
-import { upload } from "../middlewares/multer.middlewares.js";
-import { verifyJwtToken } from "../middlewares/auth.middlewares.js";
+} from "../controllers/user.controller.ts";
+import { upload } from "../middlewares/multer.middlewares.ts";
+import { verifyJwtToken } from "../middlewares/auth.middlewares.ts";
 
 const router = Router();
 

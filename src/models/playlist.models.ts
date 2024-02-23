@@ -1,7 +1,14 @@
-import { Schema, model } from "mongoose";
-import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
+import { Document, Schema, model } from "mongoose";
 
-const playlistSchema = new Schema(
+export interface IPlaylist extends Document {
+  name: string;
+  description: string;
+  videos: Schema.Types.ObjectId[];
+  owner: Schema.Types.ObjectId;
+  isPublished: boolean;
+}
+
+const playlistSchema = new Schema<IPlaylist>(
   {
     name: {
       type: String,
@@ -23,10 +30,10 @@ const playlistSchema = new Schema(
     },
     isPublished: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
   { timestamps: true }
 );
 
-export const Playlist = model("Playlist", playlistSchema);
+export const Playlist = model<IPlaylist>("Playlist", playlistSchema);

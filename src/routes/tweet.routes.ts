@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { verifyJwtToken } from "../middlewares/auth.middlewares.js";
+import { verifyJwtToken } from "../middlewares/auth.middlewares.ts";
 import {
   createTweet,
   deleteTweet,
   getUsertweets,
   updateTweet,
-} from "../controllers/tweet.controller.js";
+} from "../controllers/tweet.controller.ts";
 
 const router = Router();
 router.use(verifyJwtToken);

@@ -1,8 +1,22 @@
-import { Schema, model } from "mongoose";
+import { Document, Schema, model } from "mongoose";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
-const userSchema = new Schema(
+export interface IUser extends Document {
+  userName: string;
+  email: string;
+  fullName: string;
+  avatar: string;
+  coverImage?: string;
+  watchHistory: Schema.Types.ObjectId[];
+  password: string;
+  refreshToken?: string;
+  isPasswordCorrect(password: string): Promise<boolean>;
+  generateAccessToken(): string;
+  generateRefreshToken(): string;
+}
+
+const userSchema = new Schema<IUser>(
   {
     userName: {
       type: String,
@@ -49,7 +63,7 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
-userSchema.pre("save", async function (next) {
+userSchema.pre<IUser>("save", async function (next) {
   if (!this.isModified("password")) {
     return next();
   }
@@ -58,11 +72,14 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-userSchema.methods.isPasswordCorrect = async function (password) {
+userSchema.methods.isPasswordCorrect = async function (
+  this: IUser,
+  password: string
+) {
   return await bcrypt.compare(password, this.password);
 };
 
-userSchema.methods.generateAccessToken = function () {
+userSchema.methods.generateAccessToken = function (this: IUser) {
   return jwt.sign(
     {
       _id: this._id,
@@ -70,23 +87,23 @@ userSchema.methods.generateAccessToken = function () {
       userName: this.userName,
       fullName: this.fullName,
     },
-    process.env.ACCESS_TOKEN_SECRET,
+    process.env.ACCESS_TOKEN_SECRET as string,
     {
       expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
     }
   );
 };
 
-userSchema.methods.generateRefreshToken = function () {
+userSchema.methods.generateRefreshToken = function (this: IUser) {
   return jwt.sign(
     {
       _id: this._id,
     },
-    process.env.REFRESH_TOKEN_SECRET,
+    process.env.REFRESH_TOKEN_SECRET as string,
     {
       expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
     }
   );
 };
 
-export const User = model("User", userSchema);
+export const User = model<IUser>("User", userSchema);

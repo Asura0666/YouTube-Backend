@@ -1,10 +1,10 @@
-import mongoose from "mongoose";
-import { DB_NAME } from "../constants.js";
+import mongoose, { ConnectOptions } from "mongoose";
+import { DB_NAME } from "../constants.ts";
 
-const connectDB = async () => {
+const connectDB = async (): Promise<void> => {
   try {
     const connectionInstance = await mongoose.connect(
-      `${process.env.MONGODB_URI}/${DB_NAME}`
+      `${process.env.MONGODB_URI}/${DB_NAME}`,
     );
     console.log(
       `\n MongoDB connected !! DB HOST: ${connectionInstance.connection.host}`

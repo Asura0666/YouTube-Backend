@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { verifyJwtToken } from "../middlewares/auth.middlewares.js";
+import { verifyJwtToken } from "../middlewares/auth.middlewares.ts";
 import {
   getChannelSubscribers,
   getUserChannelSubscribers,
   getUserSubscribedChannels,
   toggleSubscription,
-} from "../controllers/subscription.controller.js";
+} from "../controllers/subscription.controller.ts";
 
 const router = Router();
 router.use(verifyJwtToken);
